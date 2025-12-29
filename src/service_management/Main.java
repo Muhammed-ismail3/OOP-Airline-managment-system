@@ -17,7 +17,7 @@ public class Main {
                 // 2. Load Data (Make sure csv files exist in project root)
                 // Note: The createFlight method in your code acts as the data loader
                 Database db = FlightManager.extractFileData(); 
-
+                
                 if(db.flights.isEmpty() && db.planes.isEmpty()) {
                     System.out.println("Warning: No data loaded. Check CSV file paths.");
                 } else {

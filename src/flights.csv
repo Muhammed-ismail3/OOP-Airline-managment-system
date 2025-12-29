@@ -1,4 +1,6 @@
 flightNum,departure,arrival,date,time,duration,planeId
+50,istanbul,ankara,2025-12-31,12:55,PT2H,2000
+20,ist,anka,2025-12-31,12:23,PT2H,20
 1015,is,iz,2025-12-25,12:11,PT2H,10
 1001,Istanbul,Ankara,2026-01-09,14:30,PT1H15M,1
 1002,dubai,Izmir,2026-01-10,09:00,PT1H5M,2

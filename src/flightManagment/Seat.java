@@ -51,7 +51,27 @@ public class Seat {
 		return reservedStatus;
 	}
 
-	public void setReservedStatus(boolean reservedStatus) {
+	public void setReservedStatus(boolean reservedStatus,Plane plane) {
+		// Update plane counters based on transition only
+		boolean previous = this.reservedStatus;
+		if (previous == reservedStatus) {
+			// No change
+			this.reservedStatus = reservedStatus;
+			return;
+		}
+		if (reservedStatus) {
+			// marking seat as now reserved
+			plane.setFulledSeatsCount(plane.getFulledSeatsCount() + 1);
+			if (plane.getEmptySeatsCount() > 0) {
+				plane.setEmptySeatsCount(plane.getEmptySeatsCount() - 1);
+			}
+		} else {
+			// marking seat as now empty
+			if (plane.getFulledSeatsCount() > 0) {
+				plane.setFulledSeatsCount(plane.getFulledSeatsCount() - 1);
+			}
+			plane.setEmptySeatsCount(plane.getEmptySeatsCount() + 1);
+		}
 		this.reservedStatus = reservedStatus;
 	}
 
@@ -69,7 +89,6 @@ public class Seat {
 		return "Seat [seatNum=" + seatNum + ", price=" + price + ", reservedStatus=" + reservedStatus + ", level="
 				+ level + "]";
 	}
-	
 	
 	
 	

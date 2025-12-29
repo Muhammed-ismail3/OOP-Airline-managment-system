@@ -1,8 +1,11 @@
 planeId,model,capacity,rows
+2000,boeing,90,6
 1,Boeing 737,180,30
+2001,bo,90,6
 2,Airbus A320,160,28
 50,nothing,300,50
 3,Boeing 777,300,50
 4,air,180,30
-20,some,120,20
+20,some,180,6
+3000,bo,90,6
 10,test,200,30

@@ -3,6 +3,8 @@ package service_management;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.io.FileNotFoundException;
+
 import flightManagment.Flight;
 import reservation_ticketing.Passenger;
 import reservation_ticketing.Reservation;
@@ -12,7 +14,7 @@ import flightManagment.Seat;
 import java.time.*;
 
 public class AirlineGUI extends JFrame {
-
+	private int value;
     private Database database;
     private DefaultTableModel flightsTableModel;
     private JTable flightsTable;
@@ -192,9 +194,9 @@ public class AirlineGUI extends JFrame {
             Passenger passenger = new Passenger(passengerId, name, surname, Long.parseLong(contact));
             database.passengers.put(passengerId, passenger); 
             FileOp.saveFile("/Users/mo/Desktop/AirlineManagment/src/passengers.csv", database.passengers.values(), false, true,
-							 "passengerId,name,surname,contactNumber");
+					 "passengerId,name,surname,contactNumber");
             Reservation r = ReservationManager.createReservation(database.flights.get(flightNum), passenger, plane.getSeatByNumber(selectedSeat), 
-            		                             LocalDate.now(), seatClassIndex, database);
+					                             LocalDate.now(), seatClassIndex, database);
             ReservationManager.issueTicket(r, finalPrice, (int)baggageWeight, database);
 
             // 5) Print all the data including confirmation timestamp
@@ -213,7 +215,7 @@ public class AirlineGUI extends JFrame {
 
             // Optionally mark the seat reserved in-memory so subsequent seat dialog shows it greyed out
             Seat s = plane.getSeatByNumber(selectedSeat);
-            if (s != null) s.setReservedStatus(true);
+            if (s != null) s.setReservedStatus(true,database.flights.get(flightNum).getPlane());
 
             // Clear passenger input fields so the dialog inputs are empty next time
             tfId.setText("");
@@ -322,9 +324,99 @@ public class AirlineGUI extends JFrame {
         sim1.setBorder(BorderFactory.createTitledBorder("Scenario 1: Concurrent Seat Reservation"));
         sim1.setBounds(20, 70, 400, 200);
         sim1.setLayout(new BoxLayout(sim1, BoxLayout.Y_AXIS));
+        
+        JTextField numberField = new JTextField(10);
+        JButton submitBtn = new JButton("Submit");
 
+       
+        sim1.add(new JLabel("Enter Flight ID:"));
+        sim1.add(numberField);
+        sim1.add(submitBtn);
+        submitBtn.addActionListener(e -> {
+            try {
+                int value = Integer.parseInt(numberField.getText().trim());
+                //System.out.println("You entered: " + value);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(panel, "Invalid integer!");
+            }
+        });
+        
         JCheckBox syncCheck = new JCheckBox("Enable Synchronization");
         JButton runSimBtn = new JButton("Run Seat Simulation");
+        
+        runSimBtn.addActionListener(e -> {
+
+            boolean syncType;
+            if (syncCheck.isSelected()) {
+                syncType = true;   // synchronization enabled
+            } else {
+                syncType = false;   // no synchronization
+            }
+
+            // call your method
+            int flightId;
+            try {
+                flightId = Integer.parseInt(numberField.getText().trim());
+            } catch (NumberFormatException nfe) {
+                JOptionPane.showMessageDialog(panel, "Please enter a valid flight ID before running the simulation.");
+                return;
+            }
+            Flight flight = database.flights.get(flightId);
+            if (flight == null) {
+                JOptionPane.showMessageDialog(panel, "Flight ID not found in database.");
+                return;
+            }
+
+            // Run simulation in background to avoid blocking the EDT
+            SwingWorker<Void, Void> worker = new SwingWorker<>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    RandomSeatTest.multiThredTest(syncType, flight);
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    // build seat visualization dialog from flight.getPlane()
+                    Plane plane = flight.getPlane();
+                    if (plane == null) {
+                        JOptionPane.showMessageDialog(panel, "Flight has no assigned plane to visualize.");
+                        return;
+                    }
+                    Seat[][] matrix = plane.getSeatM();
+                    int rows = matrix.length;
+                    int cols = (rows>0)?matrix[0].length:0;
+                    JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(panel), "Simulation Result - Seats", true);
+                    dialog.setLayout(new BorderLayout());
+                    JPanel grid = new JPanel(new GridLayout(rows, cols, 2, 2));
+                    for (int i=0;i<rows;i++) {
+                        for (int j=0;j<cols;j++) {
+                            Seat s = matrix[i][j];
+                            JButton b = new JButton((s!=null)?s.getSeatNum():"?");
+                            if (s != null && s.isReservedStatus()) {
+                                b.setEnabled(false);
+                                b.setBackground(Color.LIGHT_GRAY);
+                            }
+                            grid.add(b);
+                        }
+                    }
+                    dialog.add(new JScrollPane(grid), BorderLayout.CENTER);
+                    JLabel info = new JLabel("Reserved: " + plane.getFulledSeatsCount() + " / " + plane.getCapacity());
+                    dialog.add(info, BorderLayout.SOUTH);
+                    dialog.setSize(Math.min(800, cols*80), Math.min(600, rows*40));
+                    dialog.setLocationRelativeTo(panel);
+                    dialog.setVisible(true);
+                }
+            };
+            worker.execute();
+
+            /*if (seat != null) {
+                System.out.println("Assigned seat: " + seat.getSeatId());
+            } else {
+                System.out.println("No available seats");
+            }*/
+        });
+        
         JLabel simResult = new JLabel("Status: Idle");
 
         sim1.add(syncCheck);
@@ -340,7 +432,7 @@ public class AirlineGUI extends JFrame {
         sim2.setBorder(BorderFactory.createTitledBorder("Scenario 2: Async Report Generation"));
         sim2.setBounds(450, 70, 400, 200);
         sim2.setLayout(new BoxLayout(sim2, BoxLayout.Y_AXIS));
-
+        
         JButton reportBtn = new JButton("Generate Occupancy Report");
         JProgressBar progressBar = new JProgressBar();
         progressBar.setStringPainted(true);
@@ -397,6 +489,9 @@ public class AirlineGUI extends JFrame {
             String rows = admin_tfManufacturer.getText().trim();
             
             FlightManager.createPlane(Integer.parseInt(id),model,Integer.parseInt(capacity),Integer.parseInt(rows),database);
+            //planes dont get saved in real time need to reload from file
+    		//db.planes = FileOp.getPlaneData("/Users/mo/Desktop/AirlineManagment/src/planes.csv");
+
 
             
             System.out.println("[ADMIN] Create Plane requested:");

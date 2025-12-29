@@ -66,6 +66,7 @@ public class FlightManager {
 		db.planes.put(planeId, plane);
 		FileOp.saveFile("/Users/mo/Desktop/AirlineManagment/src/planes.csv", db.planes.values(),false,true,
 				        "planeId,model,capacity,rows");
+
 		return plane;
 	}
 	public static Flight updateFlight(Database db,Flight flight) {

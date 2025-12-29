@@ -167,7 +167,7 @@ public class FileOp {
                         System.out.println("Seat already reserved: " + seatNum);
                         continue;
                     }
-                    seat.setReservedStatus(true);
+                    seat.setReservedStatus(true,flight.getPlane());
                     Reservation tmp = new Reservation(d[0],flight,passenger,seat,LocalDate.parse(d[4]));
                     reservations.put(reservationId, tmp);
                 } catch (Exception e) {
