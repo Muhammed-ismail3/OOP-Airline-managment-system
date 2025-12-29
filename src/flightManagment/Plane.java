@@ -23,7 +23,7 @@ public class Plane {
 			int col = capacity/seatAmount;
 			this.seatM = new Seat[seatAmount][col];			
 			
-			seatMap = SeatManager.initializeSeats(seatAmount,col,seatM,seatMap);
+			SeatManager.initializeSeats(seatAmount,col,seatM,seatMap);
 			this.colAmount= seatAmount;
 			
 		}
