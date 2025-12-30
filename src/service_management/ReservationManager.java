@@ -9,10 +9,10 @@ public class ReservationManager {
 	
 	public static boolean canelReservation(String reservationId,Database database) {
 		String key = String.valueOf(reservationId);
-		if(database.reservations.containsKey(key)) {
-			database.reservations.remove(key);
+		if(database.getReservations().containsKey(key)) {
+			database.getReservations().remove(key);
 			// persist change to file
-			FileOp.saveFile("/Users/mo/Desktop/AirlineManagment/src/reservations.csv", database.reservations.values(), false, true,
+			FileOp.saveFile("/Users/mo/Desktop/AirlineManagment/src/reservations.csv", database.getReservations().values(), false, true,
 						"reservationCode,flightNum,passengerId,seatNum,dateOfReservation");
 			return true;
 		}
@@ -22,8 +22,8 @@ public class ReservationManager {
 	public static Reservation createReservation(Flight flight,Passenger passenger,Seat seat,LocalDate date,int seatLvl,Database database) {
 		Reservation reservation = new Reservation(flight,passenger,seat,date);
 		seat.setLevel(seatLvl);
-		database.reservations.put(String.valueOf(reservation.getReservationCode()), reservation);
-		FileOp.saveFile("/Users/mo/Desktop/AirlineManagment/src/reservations.csv", database.reservations.values(),false,true,
+		database.getReservations().put(String.valueOf(reservation.getReservationCode()), reservation);
+		FileOp.saveFile("/Users/mo/Desktop/AirlineManagment/src/reservations.csv", database.getReservations().values(),false,true,
 						"reservationCode,flightNum,passengerId,seatNum,dateOfReservation");
 		return reservation;
 	}

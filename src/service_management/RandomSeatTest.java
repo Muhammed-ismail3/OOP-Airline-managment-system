@@ -2,16 +2,11 @@ package service_management;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Scanner;
 import java.util.List;
 import flightManagment.Flight;
-import service_management.SeatManager;
 import reservation_ticketing.Passenger;
-import reservation_ticketing.Reservation;
 
 public class RandomSeatTest {
 	private static boolean isInteger(String s) {

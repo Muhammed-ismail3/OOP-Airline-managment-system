@@ -73,7 +73,7 @@ public class SeatManager {
             if (!seat.isReservedStatus()) {
                 // Mark it reserved (safe)
             	try {
-            	    Thread.sleep(2);
+            	    Thread.sleep(20);
             	} catch (InterruptedException e) {}
 
                 seat.setReservedStatus(true, flight.getPlane());

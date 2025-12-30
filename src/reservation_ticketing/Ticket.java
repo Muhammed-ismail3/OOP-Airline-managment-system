@@ -1,5 +1,4 @@
 package reservation_ticketing;
-import flightManagment.Seat;
 public class Ticket {
 	private int ticketId;
 	private Reservation reservation;

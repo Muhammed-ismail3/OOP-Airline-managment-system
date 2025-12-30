@@ -1,10 +1,8 @@
 package flightManagment;
-
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-
 import service_management.SeatManager;
+
 //fix the issue of seats needed to be sorted or not
 //as well as fixing the issue of having them filled in or not
 //if not filled in we need to check according to reservedStatus

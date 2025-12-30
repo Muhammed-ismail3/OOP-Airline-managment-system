@@ -1,7 +1,11 @@
-package service_management;
+package GUI;
 
 import java.io.FileNotFoundException;
 import javax.swing.SwingUtilities;
+
+import service_management.Database;
+import service_management.FlightManager;
+
 import javax.swing.JOptionPane;
 
 public class Main {
@@ -18,12 +22,12 @@ public class Main {
                 // Note: The createFlight method in your code acts as the data loader
                 Database db = FlightManager.extractFileData(); 
                 
-                if(db.flights.isEmpty() && db.planes.isEmpty()) {
+                if(db.getFlights().isEmpty() && db.getPlanes().isEmpty()) {
                     System.out.println("Warning: No data loaded. Check CSV file paths.");
                 } else {
                     System.out.println("Data loaded successfully.");
-                    System.out.println("Flights loaded: " + db.flights.size());
-                    System.out.println("Reservations loaded: " + db.reservations.size());
+                    System.out.println("Flights loaded: " + db.getFlights().size());
+                    System.out.println("Reservations loaded: " + db.getReservations().size());
                 }
 
                 // 3. Launch GUI 
