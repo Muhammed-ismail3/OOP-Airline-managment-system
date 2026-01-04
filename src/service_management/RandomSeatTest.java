@@ -1,6 +1,6 @@
 package service_management;
 
-import java.io.File;
+import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,13 +27,16 @@ public class RandomSeatTest {
 		// Use the provided syncType (true => synchronized, false => unsynchronized)
 		List<String> passengerLines = new ArrayList<>();
 		
-		// Changed to relative path for portability
-		try (Scanner sc = new Scanner(new File("src/passengers.csv"))) {
+		// Load passengers from classpath resource
+		BufferedReader br = FileOp.getResourceReader("passengers.csv");
+		try (Scanner sc = new Scanner(br)) {
 			while (sc.hasNextLine()) {
 				String line = sc.nextLine().trim();
 				if (line.isEmpty()) continue;
 				passengerLines.add(line);
 			}
+		} finally {
+			try { br.close(); } catch (Exception e) { /* ignore */ }
 		}
 
 		// Cap the threads at 91 or the number of passengers found

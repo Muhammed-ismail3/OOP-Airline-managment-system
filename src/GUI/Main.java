@@ -27,9 +27,9 @@ public class Main {
                     System.out.println("Reservations loaded: " + db.getReservations().size());
                 }
 
-                // 3. Launch GUI 
-                AirlineGUI gui = new AirlineGUI(db);
-                gui.setVisible(true);
+                // 3. Launch Login GUI (will open user or admin interface)
+                LoginGUI login = new LoginGUI(db);
+                login.setVisible(true);
 
             } catch (FileNotFoundException e) {
                 JOptionPane.showMessageDialog(null, 

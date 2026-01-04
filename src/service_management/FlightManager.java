@@ -1,8 +1,6 @@
 package service_management;
 
 import flightManagment.*;
-import java.util.*;
-import reservation_ticketing.*;
 import java.io.*;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -19,11 +17,17 @@ public class FlightManager {
 		Database data = new Database();
 		
 		// Using relative paths ensures portability
-		data.setPlanes(FileOp.getPlaneData("src/planes.csv"));
-		data.setFlights(FileOp.getFlightData("src/flights.csv", data.getPlanes()));
-		data.setPassengers(FileOp.getPassengerData("src/passengers.csv"));
-		data.setReservations(FileOp.getReservationData("src/reservations.csv", data.getFlights(), data.getPassengers()));
-		data.tickets = FileOp.getTicketData("src/tickets.csv", data.getReservations(), data.getFlights());
+		data.setPlanes(FileOp.getPlaneData("planes.csv"));
+		data.setFlights(FileOp.getFlightData("flights.csv", data.getPlanes()));
+		data.setPassengers(FileOp.getPassengerData("passengers.csv"));
+		data.setReservations(FileOp.getReservationData("reservations.csv", data.getFlights(), data.getPassengers()));
+		data.setTickets(FileOp.getTicketData("tickets.csv", data.getReservations(), data.getFlights()));
+		// try loading staff data (optional)
+		try {
+			data.setStaffMembers(FileOp.getStaffData("staff.csv"));
+		} catch (Exception e) {
+			System.out.println("No staff data loaded: " + e.getMessage());
+		}
 		return data;
 	}
 

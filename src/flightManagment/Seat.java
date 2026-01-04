@@ -83,6 +83,26 @@ public class Seat {
         this.reservedStatus = reservedStatus;
     }
 
+    /**
+     * Unsafe variant used for testing race conditions: does not check previous
+     * status before updating plane counters. This method intentionally allows
+     * double-counting when called concurrently to reproduce race scenarios.
+     */
+    public void setReservedStatusUnsafe(boolean reservedStatus, Plane plane) {
+        if (reservedStatus) {
+            plane.setFulledSeatsCount(plane.getFulledSeatsCount() + 1);
+            if (plane.getEmptySeatsCount() > 0) {
+                plane.setEmptySeatsCount(plane.getEmptySeatsCount() - 1);
+            }
+        } else {
+            if (plane.getFulledSeatsCount() > 0) {
+                plane.setFulledSeatsCount(plane.getFulledSeatsCount() - 1);
+            }
+            plane.setEmptySeatsCount(plane.getEmptySeatsCount() + 1);
+        }
+        this.reservedStatus = reservedStatus;
+    }
+
     public SeatClass getLevel() {
         return level;
     }

@@ -25,4 +25,12 @@ public class FlightSearchEngine {
             })
             .collect(Collectors.toList());
     }
+
+    /**
+     * Find flight by its flight number (ID).
+     */
+    public static Flight searchById(Map<Integer, Flight> allFlights, int flightId) {
+        if (allFlights == null) return null;
+        return allFlights.get(flightId);
+    }
 }

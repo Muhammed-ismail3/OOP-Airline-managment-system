@@ -1,12 +1,11 @@
 package service_management;
 
-import java.util.Map;
-import java.util.Random;
-import java.util.List;
-import java.util.ArrayList;
-
 import flightManagment.Flight;
 import flightManagment.Seat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 public class SeatManager {
 	
@@ -47,7 +46,7 @@ public class SeatManager {
         	    Thread.sleep(20); // Deliberate delay to provoke race conditions
         	} catch (InterruptedException e) {}
 
-            seat.setReservedStatus(true, flight.getPlane());
+			seat.setReservedStatusUnsafe(true, flight.getPlane());
             return true;
         }
         return false;

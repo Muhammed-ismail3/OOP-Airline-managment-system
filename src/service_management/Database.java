@@ -1,11 +1,12 @@
 package service_management;
 import java.util.*;
+
+import StaffManagement.Staff;
 import flightManagment.Flight;
 import flightManagment.Plane;
 import reservation_ticketing.Reservation;
 import reservation_ticketing.Ticket;
 import reservation_ticketing.Passenger;
-import java.util.HashMap;
 
 
 
@@ -13,10 +14,15 @@ import java.util.HashMap;
 	    // Key: String (Unique ID), Value: Object
 	    private Map<Long, Passenger> passengers;
 	    private Map<Integer, Flight> flights;
-	    Map<Integer, Ticket> tickets;
-	    private Map<String, Reservation> reservations;
+	    private Map<Integer, Ticket> tickets;
+	    public void setTickets(Map<Integer, Ticket> tickets) {
+			this.tickets = tickets;
+		}
+
+		private Map<String, Reservation> reservations;
 	    private Map<Integer, Plane> planes;
 	    private double totalOccupancy;
+		private Map<Long, Staff> staffMembers;
 
 	    public Database() {
 	        setPassengers(new HashMap<>());
@@ -25,7 +31,12 @@ import java.util.HashMap;
 	        setReservations(new HashMap<>());
 	        setPlanes(new HashMap<>());
 	    }
-
+	public Map<Long, Staff> getStaffMembers() {
+					return staffMembers;
+	}
+	public void setStaffMembers(Map<Long, Staff> staffMembers) {
+			this.staffMembers = staffMembers;
+	}
 	public Map<Integer, Flight> getFlights() {
 		return flights;
 	}

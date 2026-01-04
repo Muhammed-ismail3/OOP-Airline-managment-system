@@ -36,8 +36,8 @@ public class ReservationManager {
 
             // 3. Find and Remove the Linked Ticket (Cascading Delete)
             Integer ticketIdToRemove = null;
-            if (database.tickets != null) {
-                for (Ticket t : database.tickets.values()) {
+            if (database.getTickets() != null) {
+                for (Ticket t : database.getTickets().values()) {
                     if (t.getReservation() != null && t.getReservation().getReservationCode().equals(key)) {
                         ticketIdToRemove = t.getTicketId();
                         break; 
@@ -47,8 +47,8 @@ public class ReservationManager {
 
             // 4. Save updated Tickets file
             if (ticketIdToRemove != null) {
-                database.tickets.remove(ticketIdToRemove);
-                FileOp.saveFile("src/tickets.csv", database.tickets.values(), false, true,
+                database.getTickets().remove(ticketIdToRemove);
+                FileOp.saveFile("src/tickets.csv", database.getTickets().values(), false, true,
                                 "ticketNum,reservationCode,price,baggaeWeight");
             }
 
@@ -69,10 +69,10 @@ public class ReservationManager {
 
 	public static Ticket issueTicket(Reservation reservation, double price, int baggaeWeight, Database database) {
 		Ticket ticket = new Ticket(reservation, price, baggaeWeight);
-		database.tickets.put(ticket.getTicketId(), ticket);
+		database.getTickets().put(ticket.getTicketId(), ticket);
 		reservation.getFlight().addTicket(ticket);
 		
-		FileOp.saveFile("src/tickets.csv", database.tickets.values(), false, true,
+		FileOp.saveFile("src/tickets.csv", database.getTickets().values(), false, true,
 						"ticketNum,reservationCode,price,baggaeWeight");
 		return ticket;
 	}

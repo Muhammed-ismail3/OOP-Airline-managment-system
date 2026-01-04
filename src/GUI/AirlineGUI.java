@@ -1,15 +1,16 @@
 package GUI;
 
 
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import java.awt.*;
-import java.time.*;
-
-// Custom project imports
+import StaffManagement.Staff;
 import flightManagment.Flight;
+import flightManagment.FlightSearchEngine;
 import flightManagment.Plane;
 import flightManagment.Seat;
+import java.awt.*;
+import java.time.*;
+import java.util.Map;
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import reservation_ticketing.Passenger;
 import reservation_ticketing.Reservation;
 import reservation_ticketing.Ticket;
@@ -17,7 +18,6 @@ import service_management.CalculatePrice;
 import service_management.Database;
 import service_management.FileOp;
 import service_management.FlightManager;
-import service_management.RandomSeatTest;
 import service_management.ReservationManager; 
 public class AirlineGUI extends JFrame {
 	
@@ -28,13 +28,15 @@ public class AirlineGUI extends JFrame {
 	    private JTable flightsTable;
 	    private DefaultTableModel reservationsTableModel;
 	    private JTable reservationsTable;
+		private Passenger currentUser;
 
 	    // Admin Panel Fields
 	    private JTextField admin_tfPlaneId, admin_tfModel, admin_tfCapacity, admin_tfrows;
 	    private JTextField admin_tfFlightNum, admin_tfFrom, admin_tfTo, admin_tfDate, admin_tfTime, admin_tfDuration, admin_tfPlaneAssign;
 
-	    public AirlineGUI(Database database) {
-	        this.database = database;
+		public AirlineGUI(Database database, boolean showAdminPanel, Passenger currentUser) {
+			this.database = database;
+			this.currentUser = currentUser;
 	        setTitle("Airline Reservation & Management System");
 	        setSize(1000, 700);
 	        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -49,11 +51,13 @@ public class AirlineGUI extends JFrame {
 
 	        // 2. Reservation Management Tab
 	        JPanel reservationPanel = createReservationPanel();
-	        tabbedPane.addTab("Reservations", reservationPanel);
+			tabbedPane.addTab("Reservations", reservationPanel);
 
-	        // 3. Admin / Simulation Tab
-	        JPanel adminPanel = createAdminPanel();
-	        tabbedPane.addTab("Admin & Simulation", adminPanel);
+			// 3. Admin / Simulation Tab (only add if allowed)
+			if (showAdminPanel) {
+				JPanel adminPanel = createAdminPanel();
+				tabbedPane.addTab("Admin & Simulation", adminPanel);
+			}
 
 	        add(tabbedPane);
 	    }
@@ -88,10 +92,28 @@ public class AirlineGUI extends JFrame {
 	    private JPanel createFlightPanel() {
 	        JPanel panel = new JPanel(new BorderLayout());
 
-	        // Header
-	        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT));
-	        header.add(new JLabel("Current Flights in Database:"));
-	        panel.add(header, BorderLayout.NORTH);
+			// --- Search Bar (by Flight ID)
+			JPanel searchBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+			JTextField tfFromSearch = new JTextField(10);
+			JTextField tfToSearch = new JTextField(10);
+			JButton btnSearch = new JButton("Search (From -> To)");
+			JButton btnClear = new JButton("Clear");
+			searchBar.add(new JLabel("From:"));
+			searchBar.add(tfFromSearch);
+			searchBar.add(new JLabel("To:"));
+			searchBar.add(tfToSearch);
+			searchBar.add(btnSearch);
+			searchBar.add(btnClear);
+
+		// Header
+		JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT));
+		header.add(new JLabel("Current Flights in Database:"));
+
+		// Combine header and search bar into a top panel so both are visible
+		JPanel topPanel = new JPanel(new BorderLayout());
+		topPanel.add(header, BorderLayout.NORTH);
+		topPanel.add(searchBar, BorderLayout.SOUTH);
+		panel.add(topPanel, BorderLayout.NORTH);
 
 	        // Table Setup
 	        String[] columnNames = {"Flight Num", "From", "To", "Date", "Time", "Duration", "Plane Model", "Seats (Empty/Total)"};
@@ -111,7 +133,35 @@ public class AirlineGUI extends JFrame {
 	        bottom.add(bookBtn);
 	        panel.add(bottom, BorderLayout.SOUTH);
 
-	        refreshBtn.addActionListener(e -> refreshFlightsTable());
+			refreshBtn.addActionListener(e -> refreshFlightsTable());
+
+			btnSearch.addActionListener(e -> {
+				String from = tfFromSearch.getText().trim();
+				String to = tfToSearch.getText().trim();
+				if (from.isEmpty() || to.isEmpty()) {
+					JOptionPane.showMessageDialog(this, "Please enter both From and To locations.", "Input Required", JOptionPane.WARNING_MESSAGE);
+					return;
+				}
+				java.util.List<Flight> results = FlightSearchEngine.searchFlights(database.getFlights(), from, to);
+				if (results == null || results.isEmpty()) {
+					JOptionPane.showMessageDialog(this, "No matching flights found.", "Search", JOptionPane.INFORMATION_MESSAGE);
+					return;
+				}
+				// Show results in table
+				flightsTableModel.setRowCount(0);
+				for (Flight f : results) {
+					String seatAvailability = "N/A";
+					if (f.getPlane() != null) seatAvailability = f.getPlane().getEmptySeatsCount() + " / " + f.getPlane().getCapacity();
+					Object[] row = { f.getFlightNum(), f.getDeparturePlace(), f.getArrivalPlace(), f.getDate(), f.getHour(), f.getDuration(), (f.getPlane() != null) ? f.getPlane().getPlaneModel() : "N/A", seatAvailability };
+					flightsTableModel.addRow(row);
+				}
+			});
+
+			btnClear.addActionListener(e -> {
+				tfFromSearch.setText("");
+				tfToSearch.setText("");
+				refreshFlightsTable();
+			});
 
 	        bookBtn.addActionListener(e -> {
 	            int sel = flightsTable.getSelectedRow();
@@ -135,66 +185,95 @@ public class AirlineGUI extends JFrame {
 	                return;
 	            }
 
-	            // 1) Ask for passenger info
-	            JTextField tfId = new JTextField();
-	            JTextField tfName = new JTextField();
-	            JTextField tfSurname = new JTextField();
-	            JTextField tfBaggage = new JTextField();
-	            JTextField tfContact = new JTextField();
-	            String[] classes = {"Economy", "Business"};
-	            JComboBox<String> cbClass = new JComboBox<>(classes);
+				// If a user is logged in we already have their personal data; only ask for baggage and class.
+				long passengerId;
+				double baggageWeight;
+				String name;
+				String surname;
+				long contact;
+				int seatClassIndex;
+				
+				if (currentUser == null) {
+					// 1) Ask for passenger info
+					JTextField tfId = new JTextField();
+					JTextField tfName = new JTextField();
+					JTextField tfSurname = new JTextField();
+					JTextField tfBaggage = new JTextField();
+					JTextField tfContact = new JTextField();
+					String[] classes = {"Economy", "Business"};
+					JComboBox<String> cbClass = new JComboBox<>(classes);
 
-	            JPanel inputPanel = new JPanel(new GridLayout(0, 2));
-	            inputPanel.add(new JLabel("ID (numeric):")); inputPanel.add(tfId);
-	            inputPanel.add(new JLabel("Name:")); inputPanel.add(tfName);
-	            inputPanel.add(new JLabel("Surname:")); inputPanel.add(tfSurname);
-	            inputPanel.add(new JLabel("Baggage weight (kg):")); inputPanel.add(tfBaggage);
-	            inputPanel.add(new JLabel("Contact number:")); inputPanel.add(tfContact);
-	            inputPanel.add(new JLabel("Class:")); inputPanel.add(cbClass);
+					JPanel inputPanel = new JPanel(new GridLayout(0, 2));
+					inputPanel.add(new JLabel("ID (numeric):")); inputPanel.add(tfId);
+					inputPanel.add(new JLabel("Name:")); inputPanel.add(tfName);
+					inputPanel.add(new JLabel("Surname:")); inputPanel.add(tfSurname);
+					inputPanel.add(new JLabel("Baggage weight (kg):")); inputPanel.add(tfBaggage);
+					inputPanel.add(new JLabel("Contact number:")); inputPanel.add(tfContact);
+					inputPanel.add(new JLabel("Class:")); inputPanel.add(cbClass);
 
-	            int res = JOptionPane.showConfirmDialog(this, inputPanel, "Passenger Details", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-	            if (res != JOptionPane.OK_OPTION) return; 
+					int res = JOptionPane.showConfirmDialog(this, inputPanel, "Passenger Details", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+					if (res != JOptionPane.OK_OPTION) return; 
 
-	            // Validate inputs
-	            long passengerId;
-	            double baggageWeight;
-	            String name;
-	            String surname;
-	            long contact;
-	            int seatClassIndex = cbClass.getSelectedIndex() == 1 ? 1 : 0;
+					// Validate inputs
+					try {
+						contact = Long.parseLong(tfContact.getText().trim());
+					} catch (Exception ex) {
+						JOptionPane.showMessageDialog(this, "Invalid contact number. Must be numeric.", "Input Error", JOptionPane.ERROR_MESSAGE);
+						return;
+					}
+					try {
+						surname = tfSurname.getText().trim();
+						if (!surname.matches("\\p{L}+")) throw new Exception("Surname cannot be empty and must contain letters only.");
+					} catch (Exception ex) {
+						JOptionPane.showMessageDialog(this, "Invalid surname input.\n(Surname cannot be empty and must contain letters only)", "Input Error", JOptionPane.ERROR_MESSAGE);
+						return;
+					}
+					try {
+						name = tfName.getText().trim();
+						if (!name.matches("\\p{L}+")) throw new Exception("Name cannot be empty and must contain letters only.");
+					} catch (Exception ex) {
+						JOptionPane.showMessageDialog(this, "Invalid name input.\n(Name cannot be empty and must contain letters only)", "Input Error", JOptionPane.ERROR_MESSAGE);
+						return;
+					}
+					try {
+						passengerId = Long.parseLong(tfId.getText().trim());
+					} catch (Exception ex) {
+						JOptionPane.showMessageDialog(this, "Invalid ID. Must be numeric.", "Input Error", JOptionPane.ERROR_MESSAGE);
+						return;
+					}
+					try {
+						baggageWeight = Double.parseDouble(tfBaggage.getText().trim());
+					} catch (Exception ex) {
+						JOptionPane.showMessageDialog(this, "Invalid baggage weight. Must be numeric.", "Input Error", JOptionPane.ERROR_MESSAGE);
+						return;
+					}
+					seatClassIndex = cbClass.getSelectedIndex() == 1 ? 1 : 0;
+					// assign name/surname/contact from inputs below when creating passenger
+				} else {
+					// Logged-in user: only ask baggage weight and class
+					JTextField tfBaggage = new JTextField();
+					String[] classes = {"Economy", "Business"};
+					JComboBox<String> cbClass = new JComboBox<>(classes);
+					JPanel inputPanel = new JPanel(new GridLayout(0,2));
+					inputPanel.add(new JLabel("Baggage weight (kg):")); inputPanel.add(tfBaggage);
+					inputPanel.add(new JLabel("Class:")); inputPanel.add(cbClass);
 
-	            try {
-	                contact = Long.parseLong(tfContact.getText().trim());
-	            } catch (Exception ex) {
-	                JOptionPane.showMessageDialog(this, "Invalid contact number. Must be numeric.", "Input Error", JOptionPane.ERROR_MESSAGE);
-	                return;
-	            }
-	            try {
-	                surname = tfSurname.getText().trim();
-	                if (!surname.matches("\\p{L}+")) throw new Exception("Surname cannot be empty and must contain letters only.");
-	            } catch (Exception ex) {
-	                JOptionPane.showMessageDialog(this, "Invalid surname input.\n(Surname cannot be empty and must contain letters only)", "Input Error", JOptionPane.ERROR_MESSAGE);
-	                return;
-	            }
-	            try {
-	                name = tfName.getText().trim();
-	                if (!name.matches("\\p{L}+")) throw new Exception("Name cannot be empty and must contain letters only.");
-	            } catch (Exception ex) {
-	                JOptionPane.showMessageDialog(this, "Invalid name input.\n(Name cannot be empty and must contain letters only)", "Input Error", JOptionPane.ERROR_MESSAGE);
-	                return;
-	            }
-	            try {
-	                passengerId = Long.parseLong(tfId.getText().trim());
-	            } catch (Exception ex) {
-	                JOptionPane.showMessageDialog(this, "Invalid ID. Must be numeric.", "Input Error", JOptionPane.ERROR_MESSAGE);
-	                return;
-	            }
-	            try {
-	                baggageWeight = Double.parseDouble(tfBaggage.getText().trim());
-	            } catch (Exception ex) {
-	                JOptionPane.showMessageDialog(this, "Invalid baggage weight. Must be numeric.", "Input Error", JOptionPane.ERROR_MESSAGE);
-	                return;
-	            }
+					int res = JOptionPane.showConfirmDialog(this, inputPanel, "Passenger Details", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+					if (res != JOptionPane.OK_OPTION) return;
+
+					try {
+						baggageWeight = Double.parseDouble(tfBaggage.getText().trim());
+					} catch (Exception ex) {
+						JOptionPane.showMessageDialog(this, "Invalid baggage weight. Must be numeric.", "Input Error", JOptionPane.ERROR_MESSAGE);
+						return;
+					}
+					seatClassIndex = cbClass.getSelectedIndex() == 1 ? 1 : 0;
+					// populate passenger data from currentUser
+					passengerId = currentUser.getPassengerId();
+					name = currentUser.getName();
+					surname = currentUser.getSurname();
+					contact = currentUser.getContactNum();
+				}
 
 	            // 2) Seat selection dialog
 	            Plane plane = selectedFlight.getPlane();
@@ -226,10 +305,15 @@ public class AirlineGUI extends JFrame {
 	                return;
 	            }
 	            
-	            // 5) Booking Execution
-	            Passenger passenger = new Passenger(passengerId, name, surname, contact);
-	            database.getPassengers().put(passengerId, passenger); 
-	            FileOp.saveFile("src/passengers.csv", database.getPassengers().values(), false, true, "passengerId,name,surname,contactNumber");
+				// 5) Booking Execution
+				Passenger passenger;
+				if (currentUser == null) {
+					passenger = new Passenger(passengerId, name, surname, contact);
+					database.getPassengers().put(passengerId, passenger);
+					FileOp.saveFile("src/passengers.csv", database.getPassengers().values(), false, true, "passengerId,name,surname,contactNumber");
+				} else {
+					passenger = currentUser;
+				}
 	            
 	            Reservation r = ReservationManager.createReservation(database.getFlights().get(flightNum), passenger, plane.getSeatByNumber(selectedSeat), 
 	                                                                 LocalDate.now(), seatClassIndex, database);
@@ -242,9 +326,7 @@ public class AirlineGUI extends JFrame {
 	            Seat s = plane.getSeatByNumber(selectedSeat);
 	            if (s != null) s.setReservedStatus(true, plane);
 
-	            // Clear inputs and refresh
-	            tfId.setText(""); tfName.setText(""); tfSurname.setText(""); tfBaggage.setText(""); tfContact.setText("");
-	            cbClass.setSelectedIndex(0);
+				// Refresh views
 
 	            JOptionPane.showMessageDialog(this, "Reservation confirmed and printed to console.", "Success", JOptionPane.INFORMATION_MESSAGE);
 	            
@@ -311,36 +393,44 @@ public class AirlineGUI extends JFrame {
 	        if (reservationsTableModel == null) return;
 	        reservationsTableModel.setRowCount(0);
 	        // Prefer tickets view (shows price). If tickets map exists, list tickets; otherwise fall back to reservations.
-	        if (database.getTickets() != null) {
-	            for (Ticket t : database.getTickets().values()) {
-	                if (t.getReservation() == null) continue;
+			if (database.getTickets() != null) {
+				for (Ticket t : database.getTickets().values()) {
+					if (t.getReservation() == null) continue;
+					if (currentUser != null) {
+						if (t.getReservation().getPassenger() == null) continue;
+						if (t.getReservation().getPassenger().getPassengerId() != currentUser.getPassengerId()) continue;
+					}
 
-	                Object[] row = {
-	                    t.getReservation().getReservationCode(),
-	                    (t.getReservation().getPassenger() != null) ? t.getReservation().getPassenger().getName() : "Unknown",
-	                    (t.getReservation().getFlight() != null) ? t.getReservation().getFlight().getFlightNum() : "Unknown",
-	                    (t.getReservation().getSeat() != null) ? t.getReservation().getSeat().getSeatNum() : "Unknown",
-	                    t.getReservation().getDateOfReservation(),
-	                    String.format("$%.2f", t.getPrice())
-	                };
-	                reservationsTableModel.addRow(row);
-	            }
-	            return;
-	        }
+					Object[] row = {
+						t.getReservation().getReservationCode(),
+						(t.getReservation().getPassenger() != null) ? t.getReservation().getPassenger().getName() : "Unknown",
+						(t.getReservation().getFlight() != null) ? t.getReservation().getFlight().getFlightNum() : "Unknown",
+						(t.getReservation().getSeat() != null) ? t.getReservation().getSeat().getSeatNum() : "Unknown",
+						t.getReservation().getDateOfReservation(),
+						String.format("$%.2f", t.getPrice())
+					};
+					reservationsTableModel.addRow(row);
+				}
+				return;
+			}
 
-	        if (database.getReservations() != null) {
-	            for (Reservation r : database.getReservations().values()) {
-	                Object[] row = {
-	                    r.getReservationCode(),
-	                    (r.getPassenger() != null) ? r.getPassenger().getName() : "Unknown",
-	                    (r.getFlight() != null) ? r.getFlight().getFlightNum() : "Unknown",
-	                    (r.getSeat() != null) ? r.getSeat().getSeatNum() : "Unknown",
-	                    r.getDateOfReservation(),
-	                    "N/A"
-	                };
-	                reservationsTableModel.addRow(row);
-	            }
-	        }
+			if (database.getReservations() != null) {
+				for (Reservation r : database.getReservations().values()) {
+					if (currentUser != null) {
+						if (r.getPassenger() == null) continue;
+						if (r.getPassenger().getPassengerId() != currentUser.getPassengerId()) continue;
+					}
+					Object[] row = {
+						r.getReservationCode(),
+						(r.getPassenger() != null) ? r.getPassenger().getName() : "Unknown",
+						(r.getFlight() != null) ? r.getFlight().getFlightNum() : "Unknown",
+						(r.getSeat() != null) ? r.getSeat().getSeatNum() : "Unknown",
+						r.getDateOfReservation(),
+						"N/A"
+					};
+					reservationsTableModel.addRow(row);
+				}
+			}
 	    }
 
 	    // --- TAB 3: ADMIN & SIMULATION PANEL ---
@@ -370,7 +460,10 @@ public class AirlineGUI extends JFrame {
 	        JCheckBox syncCheck = new JCheckBox("Enable Synchronization");
 	        JButton runSimBtn = new JButton("Run Seat Simulation");
 	        
-	        runSimBtn.addActionListener(e -> {
+			// status label for simulation
+			JLabel simResult = new JLabel("Status: Idle");
+
+			runSimBtn.addActionListener(e -> {
 
 	            boolean syncType;
 	            if (syncCheck.isSelected()) {
@@ -397,12 +490,28 @@ public class AirlineGUI extends JFrame {
 	            SwingWorker<Void, Void> worker = new SwingWorker<>() {
 	                @Override
 	                protected Void doInBackground() throws Exception {
-	                    RandomSeatTest.multiThredTest(syncType, flight);
-	                    return null;
+								simResult.setText("Running simulation...");
+								try {
+									// Attempt to call RandomSeatTest if it's available in the runtime bundle
+									try {
+										Class<?> cls = Class.forName("service_management.RandomSeatTest");
+										java.lang.reflect.Method m = cls.getMethod("multiThredTest", boolean.class, flightManagment.Flight.class);
+										m.invoke(null, syncType, flight);
+									} catch (ClassNotFoundException | NoSuchMethodException cnf) {
+										// If the test class isn't present in the packaged JAR (some packagers exclude *Test classes),
+										// run a local inline simulation that mimics RandomSeatTest behavior.
+										runInlineSimulation(syncType, flight);
+									}
+								} catch (Exception ex) {
+									ex.printStackTrace();
+									simResult.setText("Simulation failed: " + ex.getMessage());
+								}
+								return null;
 	                }
 
-	                @Override
-	                protected void done() {
+					@Override
+					protected void done() {
+						simResult.setText("Simulation finished");
 	                    // build seat visualization dialog from flight.getPlane()
 	                    Plane plane = flight.getPlane();
 	                    if (plane == null) {
@@ -436,9 +545,7 @@ public class AirlineGUI extends JFrame {
 	            };
 	            worker.execute();
 
-	        });
-	        
-	        JLabel simResult = new JLabel("Status: Idle");
+			});
 
 	        sim1.add(syncCheck);
 	        sim1.add(Box.createVerticalStrut(10));
@@ -678,6 +785,88 @@ public class AirlineGUI extends JFrame {
 
 	        panel.add(flightCreatePanel);
 
+			// --- Manage Staff Info (Admin-only)
+			JPanel staffPanel = new JPanel(new GridLayout(0,2,6,6));
+			staffPanel.setBorder(BorderFactory.createTitledBorder("Manage Staff"));
+			staffPanel.setBounds(20, 620, 830, 120);
+
+			JTextField tfStaffId = new JTextField();
+			JTextField tfStaffName = new JTextField();
+			JTextField tfStaffRole = new JTextField();
+			JButton btnLoadStaff = new JButton("Load Staff");
+			JButton btnSaveStaff = new JButton("Save Changes");
+
+			staffPanel.add(new JLabel("Staff ID:")); staffPanel.add(tfStaffId);
+			staffPanel.add(new JLabel("Name:")); staffPanel.add(tfStaffName);
+			staffPanel.add(new JLabel("Role:")); staffPanel.add(tfStaffRole);
+			staffPanel.add(btnLoadStaff); staffPanel.add(btnSaveStaff);
+
+			// Load staff data into fields
+			btnLoadStaff.addActionListener(e -> {
+				String idStr = tfStaffId.getText().trim();
+				if (idStr.isEmpty()) return;
+				try {
+					long id = Long.parseLong(idStr);
+					Map<Long, Staff> staffs = database.getStaffMembers();
+					if (staffs == null || !staffs.containsKey(id)) {
+						JOptionPane.showMessageDialog(this, "Staff ID not found.", "Load Staff", JOptionPane.ERROR_MESSAGE);
+						return;
+					}
+					Staff s = staffs.get(id);
+					tfStaffName.setText(s.getName());
+					tfStaffRole.setText(s.getRole());
+				} catch (NumberFormatException ex) {
+					JOptionPane.showMessageDialog(this, "Staff ID must be numeric.", "Input Error", JOptionPane.ERROR_MESSAGE);
+				}
+			});
+
+			// Save changes back to database and write CSV
+			btnSaveStaff.addActionListener(e -> {
+				String idStr = tfStaffId.getText().trim();
+				if (idStr.isEmpty()) return;
+				try {
+					long id = Long.parseLong(idStr);
+					String name = tfStaffName.getText().trim();
+					String role = tfStaffRole.getText().trim();
+					if (name.isEmpty() || role.isEmpty()) {
+						JOptionPane.showMessageDialog(this, "Name and role cannot be empty.", "Input Error", JOptionPane.ERROR_MESSAGE);
+						return;
+					}
+					Map<Long, Staff> staffs = database.getStaffMembers();
+					if (staffs == null) staffs = new java.util.HashMap<>();
+					Staff s = staffs.get(id);
+					if (s == null) {
+						s = new Staff((int)id, name, role);
+					} else {
+						s.setName(name);
+						s.setRole(role);
+					}
+					staffs.put(id, s);
+					database.setStaffMembers(staffs);
+
+					// Persist to CSV
+					try (java.io.FileWriter fw = new java.io.FileWriter("src/staff.csv", false)) {
+						fw.write("staffId,name,role" + System.lineSeparator());
+						for (Staff st : staffs.values()) {
+							fw.write(st.getStaffID() + "," + st.getName() + "," + st.getRole() + System.lineSeparator());
+						}
+					} catch (Exception ex) {
+						JOptionPane.showMessageDialog(this, "Failed to save staff file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+						return;
+					}
+
+					JOptionPane.showMessageDialog(this, "Staff information saved.", "Saved", JOptionPane.INFORMATION_MESSAGE);
+					// Clear input fields after successful save
+					tfStaffId.setText("");
+					tfStaffName.setText("");
+					tfStaffRole.setText("");
+				} catch (NumberFormatException ex) {
+					JOptionPane.showMessageDialog(this, "Staff ID must be numeric.", "Input Error", JOptionPane.ERROR_MESSAGE);
+				}
+			});
+
+			panel.add(staffPanel);
+
 	        // --- New: Update and Delete Flight controls ---
 	        JButton btnUpdateFlight = new JButton("Update Flight (by ID)");
 	        btnUpdateFlight.setBounds(20, 570, 200, 30);
@@ -840,4 +1029,46 @@ public class AirlineGUI extends JFrame {
 
 	        return chosen[0];
 	    }
+
+		// Fallback: run the same simulation logic inline if RandomSeatTest isn't available at runtime
+		private void runInlineSimulation(boolean syncType, Flight flight) {
+			java.util.List<String> passengerLines = new java.util.ArrayList<>();
+			try (java.io.BufferedReader br = service_management.FileOp.getResourceReader("passengers.csv");
+				 java.util.Scanner sc = new java.util.Scanner(br)) {
+				while (sc.hasNextLine()) {
+					String line = sc.nextLine().trim();
+					if (line.isEmpty()) continue;
+					passengerLines.add(line);
+				}
+			} catch (Exception e) {
+				System.out.println("Failed to load passengers.csv for inline simulation: " + e.getMessage());
+				return;
+			}
+
+			int toCreate = Math.min(91, passengerLines.size());
+			java.util.List<Thread> threads = new java.util.ArrayList<>();
+
+			for (int i = 0; i < toCreate; i++) {
+				String line = passengerLines.get(i);
+				String[] d = line.split(",");
+				if (d.length < 4) continue;
+				try {
+					long pid = Long.parseLong(d[0].trim());
+					String name = d[1];
+					String surname = d[2];
+					long contact = Long.parseLong(d[3].trim());
+					reservation_ticketing.Passenger p = new reservation_ticketing.Passenger(syncType, pid, name, surname, contact, flight);
+					Thread t = new Thread(p);
+					threads.add(t);
+					t.start();
+				} catch (Exception ex) {
+					// skip malformed row
+				}
+			}
+
+			for (Thread t : threads) {
+				try { t.join(); } catch (InterruptedException e) { /* ignore */ }
+			}
+			System.out.println("Inline simulation complete. Reserved: " + ((flight.getPlane()!=null)?flight.getPlane().getFulledSeatsCount():0));
+		}
 }
